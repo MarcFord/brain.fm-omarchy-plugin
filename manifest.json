@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "marcford.brainfm",
+  "name": "Brain.fm",
+  "version": "0.1.0",
+  "author": "MarcFord",
+  "license": "MIT",
+  "description": "Run your Brain.fm listening session from the Omarchy bar.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Brain.fm",
+    "description": "Live session state from the bfmd daemon, with the current track title.",
+    "category": "Media",
+    "aliases": [
+      "brainfm",
+      "brain.fm",
+      "focus",
+      "music"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "center",
+    "defaults": {
+      "showTrackTitle": true,
+      "maxTitleWidth": 180
+    },
+    "schema": [
+      {
+        "key": "showTrackTitle",
+        "type": "boolean",
+        "label": "Show track title in bar",
+        "defaultValue": true,
+        "description": "When off, only the state icon is shown. The title is always in the tooltip."
+      },
+      {
+        "key": "maxTitleWidth",
+        "type": "integer",
+        "label": "Maximum track title width",
+        "min": 0,
+        "max": 560,
+        "step": 20,
+        "defaultValue": 180,
+        "description": "Pixels before the title is elided. Use 0 for no limit."
+      }
+    ]
+  }
+}

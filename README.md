@@ -1,0 +1,170 @@
+# Brain.fm for Omarchy
+
+Run your [Brain.fm](https://brain.fm) listening session from the Omarchy bar.
+
+The bar item shows what the session is doing right now — idle, buffering,
+playing or paused — along with the current track, and says so plainly when the
+daemon behind it is not running instead of quietly showing "idle".
+
+![The Brain.fm bar item](preview.png)
+
+> **Unofficial.** This project is not affiliated with, endorsed by, or
+> supported by Brain.fm. You need your own Brain.fm subscription.
+
+---
+
+## Requirements
+
+This plugin is a presentation layer. All the real work — the Brain.fm API,
+audio decoding, token renewal, timers, MPRIS — happens in `bfmd`, which you
+install separately.
+
+| Requirement | Why | Required? |
+|---|---|---|
+| [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) | Supplies every piece of session state and runs the audio | **Yes** |
+| A Brain.fm subscription, signed in with `bfm login` | `bfmd` cannot stream without one | **Yes** |
+| `setpriv` (from `util-linux`) | Ties the status-watcher child to the shell so it cannot outlive it | **Yes** — already present on Arch/Omarchy |
+| Omarchy 4.x with the Quickshell-based shell | The host this plugin loads into | **Yes** |
+
+Install `bfmd` first and sign in, then confirm it answers before adding the
+plugin:
+
+```sh
+bfm whoami     # should print: signed in
+bfm status     # should print the current state
+```
+
+### External commands this plugin runs
+
+The plugin never calls the Brain.fm API itself and ships no network code. It
+only ever runs these commands, all of them from `brain.fm-linux-client`:
+
+| Command | When | Why |
+|---|---|---|
+| `setpriv --pdeathsig TERM bfm status --watch --json` | Once, for as long as the shell runs | The single source of session state. Emits one JSON object per change, so there is no polling. `setpriv` guarantees the child dies with the shell. |
+
+`bfmd` itself is never launched by this plugin. It is D-Bus activated, so the
+first `bfm` call starts it on demand.
+
+### Privilege boundary
+
+The plugin runs unsandboxed inside the shared Omarchy shell process, as your
+user, like every Omarchy plugin. It reads no files, opens no sockets and no
+network connections of its own, and writes nothing outside the shell's own
+config. Its entire outside contact is the one command above and the read-only
+MPRIS data the shell already collects.
+
+---
+
+## Install
+
+```sh
+omarchy plugin add https://github.com/MarcFord/brain.fm-omarchy-plugin --enable
+```
+
+`--enable` adds the bar item to the centre section of your bar. Leave it off
+to install without enabling, then turn it on when you want it:
+
+```sh
+omarchy plugin enable marcford.brainfm            # default placement
+omarchy plugin enable marcford.brainfm --section right
+```
+
+Omarchy does not hot-reload plugin QML — the shell is started with its file
+watcher disabled on purpose — so if the item does not appear, restart the
+shell:
+
+```sh
+omarchy-restart-shell
+```
+
+## Usage
+
+The bar item shows one glyph for the current state, plus the track title when
+a session is running:
+
+| Glyph | State | Meaning |
+|---|---|---|
+| 󰧑 | `idle` | The daemon is up; no session is playing |
+| 󰎇 | `playing` | A session is playing; the title is shown beside it |
+| 󰏤 | `paused` | A session is paused |
+| 󰇘 | `buffering` | Waiting on the next track |
+| 󰅤 | `unavailable` | **The daemon is not reachable.** Dimmed, and never shown as "idle" |
+
+Hover for a tooltip naming the state and the track.
+
+This release is read-only — it reports state and does not control playback.
+Start and control sessions with the CLI meanwhile:
+
+```sh
+bfm play focus --activity "Deep Work" --timer 50m
+bfm pause / bfm resume / bfm skip / bfm stop
+```
+
+### When it says the daemon is not reachable
+
+That glyph means `bfm` could not reach `bfmd` on the session bus. Usually:
+
+```sh
+bfm status                 # prints what is actually wrong, and how to fix it
+bfm whoami                 # "signed out" means you need: bfm login --browser
+```
+
+The plugin reconnects on its own — immediately when the daemon reappears on
+the bus, and otherwise on a backoff that tops out at 30 seconds. You should
+not have to restart the shell.
+
+## Configuration
+
+Settings live on the bar item's entry in `~/.config/omarchy/shell.json`.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `showTrackTitle` | boolean | `true` | Show the track title beside the glyph. The title is always in the tooltip. |
+| `maxTitleWidth` | integer | `180` | Pixels before the title is elided. `0` means no limit. |
+
+```json
+{ "id": "marcford.brainfm", "showTrackTitle": true, "maxTitleWidth": 180 }
+```
+
+A vertical bar never shows the title — there is no room for it.
+
+## Removal
+
+```sh
+omarchy plugin disable marcford.brainfm   # keep it installed, take it off the bar
+omarchy plugin remove marcford.brainfm    # remove it entirely
+```
+
+Removal takes the bar entry with it. The plugin stores nothing outside
+`~/.config/omarchy/`, so nothing is left behind; `bfmd` and your Brain.fm
+session are untouched and are removed separately if you want them gone.
+
+## Development
+
+```sh
+git clone https://github.com/MarcFord/brain.fm-omarchy-plugin
+cd brain.fm-omarchy-plugin
+
+./dist/check-plugin.sh                 # the same checks CI runs
+omarchy plugin validate .              # the check the marketplace runs
+```
+
+To try a working copy, install it as a real directory — **not a symlink**.
+`omarchy plugin validate` rejects a plugin folder containing symlinks, and a
+symlinked folder does not pick up file changes:
+
+```sh
+rsync -a --delete --exclude .git --exclude docs ./ ~/.config/omarchy/plugins/marcford.brainfm/
+omarchy-restart-shell
+qs log -p "$OMARCHY_PATH/shell" --tail 100     # QML errors land here
+```
+
+A restart is needed after every change: Omarchy launches Quickshell with
+`QS_DISABLE_FILE_WATCHER=1`, so edited QML is not picked up until the shell
+restarts. A plugin shares the shell process, so a QML error degrades the whole
+bar — check the log rather than assuming silence means success.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

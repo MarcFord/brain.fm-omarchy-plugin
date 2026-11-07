@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # The marketplace validates against whatever Omarchy ships at the time, so
+  # this pin is for reproducible CI, not a guarantee. Bump it when Omarchy
+  # releases, and re-run `omarchy plugin validate .` locally before submitting.
+  OMARCHY_REF: v4.0.3
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install jq and qmllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jq qt6-declarative-dev-tools
+
+      - name: Fetch the Omarchy plugin validator
+        # The real thing, not a reimplementation: it is plain bash + jq, so the
+        # same script the marketplace runs works on a runner. Verified to be a
+        # bash script before it is trusted, so a 404 page cannot pass as one.
+        run: |
+          set -euo pipefail
+          url="https://raw.githubusercontent.com/basecamp/omarchy/${OMARCHY_REF}/bin/omarchy-plugin-validate"
+          curl -fsSL "$url" -o /tmp/omarchy-plugin-validate
+          head -1 /tmp/omarchy-plugin-validate | grep -q '^#!/bin/bash' \
+            || { echo "fetched file is not the validator"; exit 1; }
+          chmod +x /tmp/omarchy-plugin-validate
+
+      - name: Prove the assertion helpers fail when they should
+        # A check that has never been seen to fail is not evidence. This runs
+        # every helper against input it must reject, so a silently broken
+        # assertion cannot make the rest of this job green.
+        run: ./dist/ci-assert-test.sh
+
+      - name: Check the plugin
+        env:
+          OMARCHY_VALIDATE: /tmp/omarchy-plugin-validate
+        run: ./dist/check-plugin.sh
