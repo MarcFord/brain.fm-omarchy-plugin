@@ -505,6 +505,53 @@ Item {
       versionProbe.running = true
   }
 
+  // ---- The timer that is actually set right now.
+  //
+  // The status stream carries a human sentence ("work 24:52 left") but not the
+  // shape behind it, so this reads the Timer property directly. It is what
+  // lets the panel open showing the timer that is running rather than whatever
+  // was last picked in it.
+  //
+  // `spec` is the string as it was set. It needs a daemon that records it on
+  // StartSession as well as SetTimer: for a while only the latter did, which
+  // left it empty for almost every session, so the panel treats an empty spec
+  // as "nothing to restore" rather than as "no timer".
+  property var timerState: ({ mode: "none", spec: "", unbounded: false, cycles: 0 })
+
+  function refreshTimer() {
+    // Never while the daemon is unreachable: reading an activatable name's
+    // property would start one.
+    if (!reachable || timerProbe.running) return
+    timerProbe.running = true
+  }
+
+  Process {
+    id: timerProbe
+    running: false
+    command: ["busctl", "--user", "--json=short", "get-property",
+      "dev.marcford.bfm", "/dev/marcford/bfm",
+      "dev.marcford.BrainFM1", "Timer"]
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root || Number(exitCode) !== 0) return
+      try {
+        const d = JSON.parse(String(stdout.text || "")).data || {}
+        const pick = function (key, fallback) {
+          return d[key] && d[key].data !== undefined ? d[key].data : fallback
+        }
+        root.timerState = {
+          mode: String(pick("mode", "none")),
+          spec: String(pick("spec", "")),
+          unbounded: pick("unbounded", false) === true,
+          cycles: Math.floor(Number(pick("cycles", 0))) || 0
+        }
+      } catch (e) {
+        // Leave the last known value rather than inventing "no timer".
+      }
+    }
+  }
+
   // ---- The optional desktop app the panel can hand off to.
   //
   // Checked once, because installing an app while the shell runs is rare and a

@@ -131,6 +131,12 @@ Click the bar item to open the session panel.
 
   While something is already playing, **Set this on the current session**
   changes the timer without restarting the session.
+
+  Opening the panel shows the timer that is *actually* running — including one
+  set from the CLI or from another app, and one still running from before the
+  shell restarted. A spec the controls cannot show (`1h30m`, say) is displayed
+  as written and re-applied unchanged rather than being rounded to the nearest
+  button.
 - **Open full app** launches `bfm-gtk` (or `bfm-kde`). The button is hidden
   when neither is installed.
 

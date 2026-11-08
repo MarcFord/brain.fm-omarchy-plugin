@@ -47,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the existing desktop front-end is reused, and it is reused by launching it:
   its QML is compiled into that binary and cannot be imported.
 - Middle-clicking the bar item toggles pause without opening the panel.
+- The panel opens showing the timer that is actually running, read from the
+  daemon rather than from whatever was last picked in the panel — so it is
+  right for a timer set from the CLI, from another front-end, or before the
+  shell restarted. A spec the controls cannot represent is shown verbatim and
+  re-applied unchanged instead of being rounded to the nearest button.
 - Settings `showTrackTitle` and `maxTitleWidth` on the bar entry.
 - `dist/check-plugin.sh`, run in CI, covering manifest schema, entry points,
   symlinks, QML syntax, and that every external command the plugin runs is

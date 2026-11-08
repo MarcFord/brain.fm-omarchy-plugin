@@ -105,6 +105,82 @@ Item {
     return "runs until you stop it"
   }
 
+  // ---- Restoring from the timer that is actually running.
+  //
+  // Without this the panel opens showing whatever was last picked in it, which
+  // after a shell restart means "Open-ended" over a running pomodoro. The
+  // daemon records the spec as it was set, so it is the thing to believe.
+
+  // Minutes from one component of a spec. The accepted grammar is wider than
+  // the chips cover -- `7h`, `1h30m`, `45s`, any case -- so this converts
+  // rather than matching literals.
+  function _specMinutes(text) {
+    const t = String(text || "").toLowerCase().replace(/\s+/g, "")
+    if (t === "") return -1
+    const re = /(\d+)(h|m|s)?/g
+    let total = 0
+    let seen = false
+    let m
+    while ((m = re.exec(t)) !== null) {
+      const n = Number(m[1])
+      if (!isFinite(n)) continue
+      const unit = m[2] || "m"
+      if (unit === "h") total += n * 60
+      else if (unit === "s") total += n / 60
+      else total += n
+      seen = true
+    }
+    return seen ? total : -1
+  }
+
+  // Apply the running timer to the controls. Returns quietly when there is
+  // nothing to apply, leaving the user's pending choices alone.
+  function restoreFromDaemon() {
+    if (!service) return
+    const st = service.timerState || {}
+    const mode = String(st.mode || "none")
+    const spec = String(st.spec || "")
+
+    if (mode === "none") return          // nothing running; keep what is picked
+    if (spec === "") return              // a daemon too old to record it
+
+    if (mode === "countdown") {
+      timerMode = "timer"
+      // Verbatim, so what gets sent back is exactly what is running even when
+      // the spec is a form no chip shows (`7h`, `1h30m`). The summary falls
+      // back to printing the spec, so it is never silently misrepresented.
+      selLength = spec
+      return
+    }
+
+    if (mode !== "intervals") return
+
+    // "<work>/<break> x<count>", where count may be * or inf for endless.
+    const parts = spec.split("/")
+    if (parts.length < 2) return
+    const work = _specMinutes(parts[0])
+    const tail = String(parts[1])
+    const xAt = tail.toLowerCase().indexOf("x")
+    const brk = _specMinutes(xAt >= 0 ? tail.substring(0, xAt) : tail)
+    if (work <= 0 || brk <= 0) return
+
+    let repeat = 1
+    if (xAt >= 0) {
+      const count = tail.substring(xAt + 1).trim().toLowerCase()
+      if (count === "*" || count === "inf") repeat = 0
+      else {
+        const n = Math.floor(Number(count))
+        if (!isFinite(n) || n <= 0) return
+        repeat = n
+      }
+    }
+
+    timerMode = "intervals"
+    intWork = Math.round(work)
+    intBreak = Math.round(brk)
+    intRepeat = repeat
+  }
+
   function chooseTimerMode(mode) {
     timerMode = mode
     // A countdown with nothing picked cannot start, so default to the
@@ -204,6 +280,13 @@ Item {
     target: root.service
     function onMentalStatesChanged() { root.syncDefaults() }
     function onSessionLengthsChanged() { root.refreshLength() }
+    function onTimerStateChanged() { root.restoreFromDaemon() }
+  }
+
+  // Called by the widget each time the panel opens, so it reflects the timer
+  // that is running now rather than the one running when the shell started.
+  function reload() {
+    if (service) service.refreshTimer()
   }
 
   onTimerModeChanged: refreshLength()

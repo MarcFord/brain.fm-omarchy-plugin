@@ -50,9 +50,14 @@ BarWidget {
   // popup replaces another.
   property bool popoutSwitchClosing: false
 
-  function open() { opened = true }
+  function open() {
+    opened = true
+    // Re-read the running timer on every open, so the panel shows what is
+    // actually set rather than what was last picked in it.
+    sessionPanel.reload()
+  }
   function close() { opened = false }
-  function toggle() { opened = !opened }
+  function toggle() { opened ? close() : open() }
 
   function closeForPopoutSwitch() {
     popoutSwitchClosing = true
