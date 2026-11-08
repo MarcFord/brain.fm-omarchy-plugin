@@ -199,9 +199,12 @@ if (( ${#COMMANDS[@]} == 0 )); then
 else
   for cmd in "${COMMANDS[@]}"; do
     # Arguments that are also plain words (status, play) would produce noise,
-    # so only check tokens that name a program we actually invoke.
+    # so only check tokens that name a program we actually invoke. Keep this
+    # list to exactly those: naming a program the plugin never runs makes the
+    # file read as if it might -- `systemctl` sat here unused and was picked
+    # up by the marketplace's capability scan as service management.
     case "$cmd" in
-      setpriv|bfm|bfmd|bfm-gtk|bfm-kde|busctl|systemctl|sh|bash)
+      setpriv|bfm|bfmd|bfm-gtk|bfm-kde|busctl|sh)
         assert_contains "$ROOT/README.md" "$cmd" \
           "README documents the external command '$cmd'"
         ;;
