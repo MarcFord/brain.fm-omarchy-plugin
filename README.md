@@ -212,6 +212,13 @@ bfm pause / bfm resume / bfm skip / bfm stop
   reports both as unsupported — Brain.fm sessions only move forward and the
   decoder cannot seek.
 
+- **It does not embed the existing desktop app's interface.** That app's UI is
+  compiled into its own executable as a Qt resource and imports a module that
+  exists only inside that process, so there is no file to load — and loading
+  such a module into the shared shell would tie this plugin to Quickshell's
+  exact Qt build and could take the whole bar down with it. "Open full app"
+  launches it instead, which is the honest way to reuse it.
+
 - **It does not implement a login flow.** A session token renews indefinitely,
   so signing in is a once-ever thing; the plugin surfaces the failure and
   points at `bfm login --browser`.
