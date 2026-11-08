@@ -191,7 +191,7 @@ else
     # Arguments that are also plain words (status, play) would produce noise,
     # so only check tokens that name a program we actually invoke.
     case "$cmd" in
-      setpriv|bfm|bfmd|bfm-gtk|systemctl|sh|bash)
+      setpriv|bfm|bfmd|bfm-gtk|bfm-kde|busctl|systemctl|sh|bash)
         assert_contains "$ROOT/README.md" "$cmd" \
           "README documents the external command '$cmd'"
         ;;

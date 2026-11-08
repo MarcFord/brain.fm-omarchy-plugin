@@ -24,8 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opens it so it can be bound to a key.
 - Session length in the three modes the daemon supports and the web player
   offers: open-ended, a countdown, or work/break intervals with a chosen
-  repeat count. While something is playing, the chosen mode can be applied to
-  the running session without restarting it.
+  repeat count — including **Endless** intervals that cycle until stopped.
+  While something is playing, the chosen mode can be applied to the running
+  session without restarting it.
+- Feature detection on the daemon's `InterfaceVersion`, read over D-Bus
+  because neither `bfm --version` nor its JSON status reports it and a daemon
+  built from source still calls itself 0.1.0 while serving a newer interface.
+  Endless intervals need version 6 and the option is hidden below that, since
+  a missing repeat count means one cycle rather than forever and there is no
+  way to fake it. A version that could not be read is treated as unknown, not
+  as old.
 - Mental states, activities, genres and suggested session lengths are read
   from the daemon rather than hardcoded, so the plugin cannot drift from the
   catalogue the other front-ends show. All four reload when the mental state
@@ -40,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its QML is compiled into that binary and cannot be imported.
 - Middle-clicking the bar item toggles pause without opening the panel.
 - Settings `showTrackTitle` and `maxTitleWidth` on the bar entry.
+- `dist/check-plugin.sh`, run in CI, covering manifest schema, entry points,
+  symlinks, QML syntax, and that every external command the plugin runs is
+  documented in the README.
 
 ### Fixed
 
@@ -53,9 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   daemon purely because the bar was watching one. Recovery now waits for the
   name to come back, which is proof a daemon is running rather than a request
   to start one.
-- `dist/check-plugin.sh`, run in CI, covering manifest schema, entry points,
-  symlinks, QML syntax, and that every external command the plugin runs is
-  documented in the README.
 
 ### Notes on `bfm status --watch --json`
 

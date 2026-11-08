@@ -66,16 +66,28 @@ Item {
   property int intRepeat: 4
   readonly property var workOptions: [15, 25, 50]
   readonly property var breakOptions: [5, 10]
-  // The service rejects "x0" and treats a missing count as exactly one cycle,
-  // so there is no spec for "repeat forever" to offer here.
-  readonly property var repeatOptions: [2, 4, 6, 8]
+  // 0 means endless -- "x*", cycling until stopped. It needs interface
+  // version 6, so it is offered only when the daemon actually reports that;
+  // a missing count means exactly one cycle, not "forever", and "x0" is
+  // rejected, so there is no way to fake it on an older daemon.
+  readonly property var repeatOptions: {
+    const out = [
+      { value: 2, label: "×2" },
+      { value: 4, label: "×4" },
+      { value: 6, label: "×6" },
+      { value: 8, label: "×8" }
+    ]
+    if (service && service.supportsEndlessIntervals)
+      out.push({ value: 0, label: "Endless" })
+    return out
+  }
 
   // The spec handed to `bfm --timer` / `bfm timer`. "" means no timer, which
   // the service takes as the argument being absent rather than empty.
   readonly property string timerSpec: {
     if (timerMode === "timer") return selLength
     if (timerMode === "intervals")
-      return intWork + "m/" + intBreak + "m x" + intRepeat
+      return intWork + "m/" + intBreak + "m x" + (intRepeat === 0 ? "*" : intRepeat)
     return ""
   }
 
@@ -86,8 +98,10 @@ Item {
         if (lengthOptions[i].value === selLength) return lengthOptions[i].label
       return selLength
     }
-    if (timerMode === "intervals")
-      return intWork + " min work / " + intBreak + " min break, ×" + intRepeat
+    if (timerMode === "intervals") {
+      const rounds = intRepeat === 0 ? "endless" : "×" + intRepeat
+      return intWork + " min work / " + intBreak + " min break, " + rounds
+    }
     return "runs until you stop it"
   }
 
@@ -588,13 +602,13 @@ Item {
                 model: root.repeatOptions
                 Button {
                   required property var modelData
-                  text: "×" + modelData
+                  text: String(modelData.label)
                   fontSize: Style.font.bodySmall
                   foreground: root.fg
                   fontFamily: root.fontFamily
                   bordered: true
-                  active: root.intRepeat === Number(modelData)
-                  onClicked: root.intRepeat = Number(modelData)
+                  active: root.intRepeat === Number(modelData.value)
+                  onClicked: root.intRepeat = Number(modelData.value)
                 }
               }
             }

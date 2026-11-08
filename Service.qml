@@ -460,6 +460,51 @@ Item {
     }
   }
 
+  // ---- Interface version, for feature detection.
+  //
+  // Read over D-Bus because neither the CLI's `--version` nor its JSON status
+  // carries it: a daemon built from main still reports "bfm 0.1.0" while
+  // serving a newer interface, so the binary version says nothing about which
+  // members exist.
+  //
+  // 0 means "not read yet", never "old". A failed read is a daemon that is not
+  // answering, and treating that as version 0 is the bug upstream's own GUIs
+  // shipped -- telling the user their daemon was too old when it was merely
+  // absent. Controls are gated on a version actually read.
+  property int interfaceVersion: 0
+
+  // `25m/5m x*` -- intervals that keep cycling until stopped, rather than a
+  // fixed number of rounds.
+  readonly property bool supportsEndlessIntervals: interfaceVersion >= 6
+
+  Process {
+    id: versionProbe
+    running: false
+    command: ["busctl", "--user", "--json=short", "get-property",
+      "dev.marcford.bfm", "/dev/marcford/bfm",
+      "dev.marcford.BrainFM1", "InterfaceVersion"]
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root || Number(exitCode) !== 0) return
+      try {
+        const parsed = JSON.parse(String(stdout.text || ""))
+        const n = Math.floor(Number(parsed.data))
+        if (isFinite(n) && n > 0) root.interfaceVersion = n
+      } catch (e) {
+        // Leave it unread rather than guessing a version.
+      }
+    }
+  }
+
+  // Only ever asked once the stream says a daemon is answering. Reading a
+  // property off an activatable name would otherwise start the daemon just to
+  // ask how new it is -- the same resurrection the MPRIS path avoids.
+  onReachableChanged: {
+    if (reachable && interfaceVersion === 0 && !versionProbe.running)
+      versionProbe.running = true
+  }
+
   // ---- The optional desktop app the panel can hand off to.
   //
   // Checked once, because installing an app while the shell runs is rare and a

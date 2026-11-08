@@ -25,6 +25,7 @@ install separately.
 | [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) | Supplies every piece of session state and runs the audio | **Yes** |
 | A Brain.fm subscription, signed in with `bfm login` | `bfmd` cannot stream without one | **Yes** |
 | `setpriv` (from `util-linux`) | Ties the status-watcher child to the shell so it cannot outlive it | **Yes** — already present on Arch/Omarchy |
+| `busctl` (from `systemd`) | Reads the daemon's interface version, to decide which controls it can offer | **Yes** — already present on Arch/Omarchy |
 | Omarchy 4.x with the Quickshell-based shell | The host this plugin loads into | **Yes** |
 
 Install `bfmd` first and sign in, then confirm it answers before adding the
@@ -50,6 +51,7 @@ only ever runs these commands, all of them from `brain.fm-linux-client`:
 | `bfm play <state> [--activity …] [--genre …]… [--effort …] [--timer …]` | When you press Start | Starts a session |
 | `bfm pause`, `bfm resume`, `bfm skip`, `bfm stop` | When you press the matching control | Transport |
 | `bfm timer [spec]` | When you change session length on a running session | Sets or, with no argument, clears the timer |
+| `busctl --user --json=short get-property dev.marcford.bfm … InterfaceVersion` | Once, after the daemon first answers | Feature detection. Neither `bfm --version` nor its JSON status reports the interface version, and a daemon built from source still calls itself 0.1.0 while serving a newer one |
 | `sh -c 'command -v bfm-gtk \|\| command -v bfm-kde \|\| true'` | Once at startup | Decides whether to show the "Open full app" button at all |
 | `bfm-gtk` (or `bfm-kde`) | When you press "Open full app" | Launched detached, so closing the shell does not close it |
 
@@ -125,7 +127,7 @@ Click the bar item to open the session panel.
   |---|---|
   | **Open-ended** | No timer. Plays until you stop it. |
   | **Timer** | Counts down once, then ends. Lengths are the ones Brain.fm suggests for the mental state you picked — 60/90/120 minutes for focus, 7–9 hours for sleep. |
-  | **Intervals** | Alternates work and break — 25 min work / 5 min break, ×4 by default — and the bar tooltip tracks which phase you are in and how long is left. |
+  | **Intervals** | Alternates work and break — 25 min work / 5 min break, ×4 by default — and the bar tooltip tracks which phase you are in and how long is left. Pick **Endless** to keep cycling until you stop it; that needs a daemon serving interface version 6, and the option is hidden on older ones because there is no spec that fakes it. |
 
   While something is already playing, **Set this on the current session**
   changes the timer without restarting the session.
