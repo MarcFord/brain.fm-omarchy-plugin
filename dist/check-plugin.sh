@@ -94,27 +94,37 @@ else
 fi
 
 echo
-echo "== QML syntax"
-# This qmllint is a syntax verifier, not a full linter: it catches parse
-# errors, not unknown properties. That is still the class of error that
-# matters most here, because a QML parse error degrades the whole shell.
+echo "== QML parses"
+# qmlformat, not qmllint, and the difference matters.
 #
-# Named qmllint on Arch, qmllint6 on Debian/Ubuntu, and unversioned inside
-# Qt's own libexec dir on both.
-QMLLINT=""
-for candidate in qmllint qmllint6 /usr/lib/qt6/bin/qmllint \
-  /usr/lib/x86_64-linux-gnu/qt6/bin/qmllint; do
-  if command -v "$candidate" >/dev/null 2>&1; then QMLLINT=$candidate; break; fi
+# qmllint resolves types, and this plugin's types come from the Omarchy shell's
+# own private QML modules (qs.Ui, qs.Commons) which exist only inside that
+# shell. Anywhere else it cannot resolve BarWidget or WidgetButton and reports
+# their every property as missing -- warnings that are noise here, not defects.
+#
+# Worse, it is not the same program everywhere: Arch ships a syntax-only build
+# that reports nothing at all, while Ubuntu ships the full linter. That is why
+# this check passed locally for months and failed the first time CI ran it.
+#
+# qmlformat only parses, so it behaves identically everywhere and fails exactly
+# when a file will not parse -- which is the error that matters, because a QML
+# parse error degrades the whole shell process. Both tools miss a duplicate
+# property; only loading the plugin catches that, and the README says to check
+# the shell log after every change for precisely that reason.
+QMLFORMAT=""
+for candidate in qmlformat qmlformat6 /usr/lib/qt6/bin/qmlformat \
+  /usr/lib/x86_64-linux-gnu/qt6/bin/qmlformat; do
+  if command -v "$candidate" >/dev/null 2>&1; then QMLFORMAT=$candidate; break; fi
 done
 
-if [[ -n $QMLLINT ]]; then
+if [[ -n $QMLFORMAT ]]; then
   shopt -s nullglob
   for f in "$ROOT"/*.qml; do
-    assert_cmd_succeeds "qmllint: $(basename "$f")" -- "$QMLLINT" "$f"
+    assert_cmd_succeeds "parses: $(basename "$f")" -- "$QMLFORMAT" "$f"
   done
   shopt -u nullglob
 else
-  fail "qmllint not found (Arch: qt6-declarative, Debian/Ubuntu: qt6-declarative-dev-tools)"
+  fail "qmlformat not found (Arch: qt6-declarative, Debian/Ubuntu: qt6-declarative-dev-tools)"
 fi
 
 echo

@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install jq and qmllint
+      - name: Install jq and qmlformat
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends jq qt6-declarative-dev-tools
