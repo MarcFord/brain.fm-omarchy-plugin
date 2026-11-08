@@ -22,11 +22,27 @@ install separately.
 
 | Requirement | Why | Required? |
 |---|---|---|
-| [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) | Supplies every piece of session state and runs the audio | **Yes** |
+| [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) — **0.1.1 or newer recommended** | Supplies every piece of session state and runs the audio | **Yes** |
 | A Brain.fm subscription, signed in with `bfm login` | `bfmd` cannot stream without one | **Yes** |
 | `setpriv` (from `util-linux`) | Ties the status-watcher child to the shell so it cannot outlive it | **Yes** — already present on Arch/Omarchy |
 | `busctl` (from `systemd`) | Reads the daemon's interface version, to decide which controls it can offer | **Yes** — already present on Arch/Omarchy |
 | Omarchy 4.x with the Quickshell-based shell | The host this plugin loads into | **Yes** |
+
+### On older daemons
+
+The plugin works against 0.1.0, the first release, but two things are missing
+there and it adapts rather than failing:
+
+- **Suggested session lengths.** `bfm list session-lengths` is newer, so the
+  Timer mode offers plain durations instead of the ones Brain.fm suggests for
+  the mental state you picked.
+- **Endless intervals.** They need interface version 6. The option is hidden
+  rather than approximated — a missing repeat count means *one* cycle, not
+  forever, so a fallback would hand you a single 25-minute round when you
+  asked for continuous.
+
+Both are detected at runtime, so upgrading the daemon is enough; nothing in
+the plugin needs changing.
 
 Install `bfmd` first and sign in, then confirm it answers before adding the
 plugin:

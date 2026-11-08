@@ -60,15 +60,16 @@ Item {
   // Upstream has since made the stream follow the daemon in both directions,
   // which makes this redundant against a daemon that has that change.
   //
-  // It is kept anyway, deliberately. Unlike the timer features, which are
-  // gated on InterfaceVersion, there is no way to detect at runtime whether
-  // the installed `bfm` has the watch fix: it changed the behaviour of a
-  // stream, not the D-Bus interface, so InterfaceVersion does not move, and
-  // the binary version string is not evidence either -- a build carrying the
-  // fix still reported "bfm 0.1.0". Dropping this would mean trusting a README
-  // requirement with nothing checking it, and being wrong would mean a bar
-  // that shows "playing" for a daemon that is gone, which is the one failure
-  // this plugin exists to avoid.
+  // It is kept anyway, deliberately. The fix changed the behaviour of a
+  // stream rather than the D-Bus interface, so InterfaceVersion does not move
+  // for it and there is nothing to feature-detect the way the timer controls
+  // are detected. The binary version does track it from 0.1.1 onward, but a
+  // version string is a proxy for behaviour rather than evidence of it -- and
+  // this particular failure is a bar that shows "playing" for a daemon that is
+  // gone: the one thing this plugin exists to prevent, and the hardest for a
+  // user to attribute, because a stale bar looks exactly like a working one.
+  // That is too unpleasant to hang on a proxy, and it is why this stays even
+  // though the stream no longer needs it.
   //
   // The cost of keeping it is near zero: no polling and no subprocess, just a
   // binding on a model the shell already maintains. The two signals cannot
