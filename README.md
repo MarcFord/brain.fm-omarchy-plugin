@@ -46,6 +46,7 @@ only ever runs these commands, all of them from `brain.fm-linux-client`:
 | `bfm list states` | Once at startup | Fills the mental-state picker |
 | `bfm list activities --state <state>` | When you pick a mental state | Fills the activity picker |
 | `bfm list genres --state <state>` | When you pick a mental state | Fills the genre picker |
+| `bfm list session-lengths --state <state>` | When you pick a mental state | Fills the Timer lengths. Newer than the released CLI; when it is not understood the panel offers plain durations instead of inventing Brain.fm's suggestions |
 | `bfm play <state> [--activity …] [--genre …]… [--effort …] [--timer …]` | When you press Start | Starts a session |
 | `bfm pause`, `bfm resume`, `bfm skip`, `bfm stop` | When you press the matching control | Transport |
 | `bfm timer [spec]` | When you change session length on a running session | Sets or, with no argument, clears the timer |
@@ -117,6 +118,17 @@ Click the bar item to open the session panel.
 - **Starting a session** — pick a mental state, then an activity, any number of
   genres, the neural effect, and a length. Press **Start session**, or just
   press **Enter**.
+- **Session length** comes in the three modes the daemon supports, the same
+  three the web player offers:
+
+  | Mode | What it does |
+  |---|---|
+  | **Open-ended** | No timer. Plays until you stop it. |
+  | **Timer** | Counts down once, then ends. Lengths are the ones Brain.fm suggests for the mental state you picked — 60/90/120 minutes for focus, 7–9 hours for sleep. |
+  | **Intervals** | Alternates work and break — 25 min work / 5 min break, ×4 by default — and the bar tooltip tracks which phase you are in and how long is left. |
+
+  While something is already playing, **Set this on the current session**
+  changes the timer without restarting the session.
 - **Open full app** launches `bfm-gtk` (or `bfm-kde`). The button is hidden
   when neither is installed.
 

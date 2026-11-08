@@ -337,13 +337,23 @@ Item {
   // from the other front-ends. `bfm list` has no --json, but its output is
   // simple: one item per line, and activities are "id<TAB>name".
   //
-  // Session lengths are the exception: BrainFM1 exposes ListSessionLengths but
-  // the CLI has no `bfm list session-lengths`, so the timer presets below are
-  // the three shapes the daemon's SetTimer accepts rather than a fetched list.
   property var mentalStates: []
   property var activities: []
   property var genres: []
   property string catalogState: ""
+
+  // Suggested session lengths for the current mental state, as
+  // [{ value: "<n>m", label: "<daemon's own label>" }].
+  //
+  // These are genuinely per-state -- focus is 60/90/120 minutes while sleep is
+  // 7/8/9 hours -- so one hardcoded list is wrong for most states and absurd
+  // for sleep. `bfm list session-lengths` is newer than the released CLI,
+  // which exits non-zero with empty stdout for a list target it does not know.
+  // That is the feature detection: when it fails the panel offers only the
+  // lengths that are not catalogue data (open-ended, and the interval shape),
+  // rather than inventing durations the service never suggested.
+  property var sessionLengths: []
+  property bool sessionLengthsSupported: false
 
   function loadCatalog(state) {
     const next = String(state || "").trim()
@@ -351,12 +361,16 @@ Item {
     catalogState = next
     activities = []
     genres = []
+    sessionLengths = []
     activitiesProc.running = false
     activitiesProc.command = ["bfm", "list", "activities", "--state", next]
     activitiesProc.running = true
     genresProc.running = false
     genresProc.command = ["bfm", "list", "genres", "--state", next]
     genresProc.running = true
+    lengthsProc.running = false
+    lengthsProc.command = ["bfm", "list", "session-lengths", "--state", next]
+    lengthsProc.running = true
   }
 
   function _lines(text) {
@@ -410,6 +424,39 @@ Item {
     onExited: function (exitCode) {
       if (!root || Number(exitCode) !== 0) return
       root.genres = root._lines(stdout.text)
+    }
+  }
+
+  Process {
+    id: lengthsProc
+    running: false
+    command: []
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root) return
+      if (Number(exitCode) !== 0) {
+        // An older CLI that does not know this list target. Not an error worth
+        // showing: the panel simply offers fewer lengths.
+        root.sessionLengthsSupported = false
+        root.sessionLengths = []
+        return
+      }
+      // "seconds<TAB>label", the same shape as activities.
+      const rows = root._lines(stdout.text)
+      const out = []
+      for (let i = 0; i < rows.length; i++) {
+        const parts = rows[i].split("\t")
+        if (parts.length < 2) continue
+        const seconds = Number(parts[0].trim())
+        if (!isFinite(seconds) || seconds <= 0) continue
+        // SetTimer's countdown form is minutes. The label stays the daemon's
+        // own ("7 hours"), so the panel reads the way the apps do.
+        out.push({ value: String(Math.round(seconds / 60)) + "m",
+                   label: parts[1].trim() })
+      }
+      root.sessionLengths = out
+      root.sessionLengthsSupported = out.length > 0
     }
   }
 

@@ -35,19 +35,69 @@ Item {
   property string selActivity: ""
   property var selGenres: []
   property string selEffort: "high"
-  property string selLength: ""
 
-  // Session length. BrainFM1 exposes ListSessionLengths but the CLI has no
-  // `bfm list session-lengths`, so these are the three shapes SetTimer accepts
-  // rather than a fetched catalogue -- the one list here that is not read from
-  // the daemon, and labelled as a choice of shape rather than of preset.
-  readonly property var lengths: [
-    { value: "", label: "Open-ended" },
-    { value: "25m", label: "25m" },
-    { value: "50m", label: "50m" },
-    { value: "90m", label: "90m" },
-    { value: "25m/5m x4", label: "25/5 ×4" }
-  ]
+  // ---- Session length, in the three modes the service supports and the web
+  //      player offers: open-ended, a countdown, or work/break intervals.
+  property string timerMode: "infinite"   // infinite | timer | intervals
+
+  // Countdown. Brain.fm's own suggestions are per-state -- 60/90/120 minutes
+  // for focus but 7/8/9 hours for sleep -- so they are read from the service
+  // and never hardcoded. The generic ladder is the fallback for a daemon whose
+  // CLI cannot list them, and is offered as plain durations rather than as
+  // anything Brain.fm recommended.
+  property string selLength: ""
+  readonly property var lengthOptions: {
+    const fromDaemon = service ? (service.sessionLengths || []) : []
+    if (fromDaemon.length > 0) return fromDaemon
+    return [
+      { value: "15m", label: "15 min" },
+      { value: "30m", label: "30 min" },
+      { value: "45m", label: "45 min" },
+      { value: "60m", label: "60 min" },
+      { value: "90m", label: "90 min" },
+      { value: "120m", label: "120 min" }
+    ]
+  }
+
+  // Intervals. Not catalogue data -- a work/break cycle is a technique, not
+  // something Brain.fm publishes per state -- so these stay local.
+  property int intWork: 25
+  property int intBreak: 5
+  property int intRepeat: 4
+  readonly property var workOptions: [15, 25, 50]
+  readonly property var breakOptions: [5, 10]
+  // The service rejects "x0" and treats a missing count as exactly one cycle,
+  // so there is no spec for "repeat forever" to offer here.
+  readonly property var repeatOptions: [2, 4, 6, 8]
+
+  // The spec handed to `bfm --timer` / `bfm timer`. "" means no timer, which
+  // the service takes as the argument being absent rather than empty.
+  readonly property string timerSpec: {
+    if (timerMode === "timer") return selLength
+    if (timerMode === "intervals")
+      return intWork + "m/" + intBreak + "m x" + intRepeat
+    return ""
+  }
+
+  readonly property string timerSummary: {
+    if (timerMode === "timer") {
+      if (selLength === "") return "no length picked"
+      for (let i = 0; i < lengthOptions.length; i++)
+        if (lengthOptions[i].value === selLength) return lengthOptions[i].label
+      return selLength
+    }
+    if (timerMode === "intervals")
+      return intWork + " min work / " + intBreak + " min break, ×" + intRepeat
+    return "runs until you stop it"
+  }
+
+  function chooseTimerMode(mode) {
+    timerMode = mode
+    // A countdown with nothing picked cannot start, so default to the
+    // service's first suggestion the moment the mode is chosen.
+    if (mode === "timer" && selLength === "" && lengthOptions.length > 0)
+      selLength = String(lengthOptions[0].value)
+  }
 
   readonly property var efforts: [
     { value: "low", label: "Low" },
@@ -66,10 +116,14 @@ Item {
   function chooseState(next) {
     if (next === selState) return
     selState = next
-    // The activity and genre lists are per-state, so a carried-over choice
-    // would be silently invalid.
+    // Activities, genres and suggested lengths are all per-state, so a
+    // carried-over choice would be silently invalid -- a 60-minute focus
+    // length is not among sleep's 7-to-9-hour ones. The chosen *mode* is kept,
+    // because wanting a countdown is not state-specific; only the length is
+    // dropped, and refreshLength() picks a valid one when the new list lands.
     selActivity = ""
     selGenres = []
+    selLength = ""
     if (service) service.loadCatalog(next)
   }
 
@@ -92,6 +146,8 @@ Item {
 
   readonly property bool canStart: selState !== "" && service !== null
     && !service.busy && reachable
+    // A countdown with no length picked would silently start open-ended.
+    && !(timerMode === "timer" && selLength === "")
 
   // The panel's primary action, shared by the Start button and by Enter.
   // Omarchy's panels are expected to be keyboard-drivable -- that is what
@@ -99,8 +155,16 @@ Item {
   // one function keeps the two from drifting apart.
   function startSelected() {
     if (!canStart) return
-    service.startSession(selState, selActivity, selGenres, selEffort, selLength)
+    service.startSession(selState, selActivity, selGenres, selEffort, timerSpec)
     closeRequested()
+  }
+
+  // Change the timer on the session that is already playing, without
+  // restarting it. This is what `bfm timer` is for, and without it the three
+  // modes would only be reachable by starting a new session.
+  function applyTimerToCurrent() {
+    if (!service || !hasSession) return
+    service.setTimer(timerSpec)
   }
 
   function titleCase(s) {
@@ -111,10 +175,24 @@ Item {
   onServiceChanged: syncDefaults()
   Component.onCompleted: syncDefaults()
 
+  // Keep the countdown length valid: it is cleared when the mental state
+  // changes, and the replacement list only arrives once `bfm list` returns.
+  function refreshLength() {
+    if (timerMode !== "timer") return
+    const opts = lengthOptions
+    if (opts.length === 0) return
+    for (let i = 0; i < opts.length; i++)
+      if (String(opts[i].value) === selLength) return
+    selLength = String(opts[0].value)
+  }
+
   Connections {
     target: root.service
     function onMentalStatesChanged() { root.syncDefaults() }
+    function onSessionLengthsChanged() { root.refreshLength() }
   }
+
+  onTimerModeChanged: refreshLength()
 
   Flickable {
     id: flick
@@ -372,17 +450,52 @@ Item {
           spacing: Style.spacing.labelGap
 
           PanelSectionHeader {
-            text: "LENGTH"
+            text: "LENGTH — " + root.timerSummary.toUpperCase()
             foreground: root.fg
             fontFamily: root.fontFamily
+            width: parent.width
+            elide: Text.ElideRight
           }
 
-          Flow {
+          // The three modes the service supports, named the way the web
+          // player names them.
+          Row {
+            id: modeRow
             width: parent.width
             spacing: Style.space(6)
 
+            readonly property var modes: [
+              { value: "infinite", label: "Open-ended" },
+              { value: "timer", label: "Timer" },
+              { value: "intervals", label: "Intervals" }
+            ]
+            readonly property real cellWidth:
+              (width - spacing * (modes.length - 1)) / modes.length
+
             Repeater {
-              model: root.lengths
+              model: modeRow.modes
+              Button {
+                required property var modelData
+                width: modeRow.cellWidth
+                text: String(modelData.label)
+                fontSize: Style.font.bodySmall
+                foreground: root.fg
+                fontFamily: root.fontFamily
+                bordered: true
+                active: root.timerMode === String(modelData.value)
+                onClicked: root.chooseTimerMode(String(modelData.value))
+              }
+            }
+          }
+
+          // Countdown lengths.
+          Flow {
+            width: parent.width
+            spacing: Style.space(6)
+            visible: root.timerMode === "timer"
+
+            Repeater {
+              model: root.lengthOptions
               Button {
                 required property var modelData
                 text: String(modelData.label)
@@ -394,6 +507,114 @@ Item {
                 onClicked: root.selLength = String(modelData.value)
               }
             }
+          }
+
+          // Interval shape: work, break, and how many times round.
+          Column {
+            width: parent.width
+            spacing: Style.spacing.labelGap
+            visible: root.timerMode === "intervals"
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Work"
+                color: Qt.darker(root.fg, 1.4)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                width: Style.space(44)
+              }
+
+              Repeater {
+                model: root.workOptions
+                Button {
+                  required property var modelData
+                  text: modelData + "m"
+                  fontSize: Style.font.bodySmall
+                  foreground: root.fg
+                  fontFamily: root.fontFamily
+                  bordered: true
+                  active: root.intWork === Number(modelData)
+                  onClicked: root.intWork = Number(modelData)
+                }
+              }
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Break"
+                color: Qt.darker(root.fg, 1.4)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                width: Style.space(44)
+              }
+
+              Repeater {
+                model: root.breakOptions
+                Button {
+                  required property var modelData
+                  text: modelData + "m"
+                  fontSize: Style.font.bodySmall
+                  foreground: root.fg
+                  fontFamily: root.fontFamily
+                  bordered: true
+                  active: root.intBreak === Number(modelData)
+                  onClicked: root.intBreak = Number(modelData)
+                }
+              }
+            }
+
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Repeat"
+                color: Qt.darker(root.fg, 1.4)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                width: Style.space(44)
+              }
+
+              Repeater {
+                model: root.repeatOptions
+                Button {
+                  required property var modelData
+                  text: "×" + modelData
+                  fontSize: Style.font.bodySmall
+                  foreground: root.fg
+                  fontFamily: root.fontFamily
+                  bordered: true
+                  active: root.intRepeat === Number(modelData)
+                  onClicked: root.intRepeat = Number(modelData)
+                }
+              }
+            }
+          }
+
+          // Changing the timer on the session already playing, rather than
+          // starting a new one for the sake of it.
+          Button {
+            width: parent.width
+            visible: root.hasSession
+            text: "Set this on the current session"
+            iconText: "󱎫"
+            bordered: true
+            focusable: true
+            fontSize: Style.font.bodySmall
+            foreground: root.fg
+            fontFamily: root.fontFamily
+            enabled: root.service && !root.service.busy
+            opacity: enabled ? 1.0 : 0.45
+            onClicked: root.applyTimerToCurrent()
           }
         }
 

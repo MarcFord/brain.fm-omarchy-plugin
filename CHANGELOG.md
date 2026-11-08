@@ -22,9 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   activity, any number of genres, neural effect and length. `Enter` starts it,
   `Esc` closes the panel, and `omarchy-shell shell summon marcford.brainfm`
   opens it so it can be bound to a key.
-- Mental states, activities and genres are read from the daemon rather than
-  hardcoded, so the plugin cannot drift from the catalogue the other
-  front-ends show. Activities and genres reload when the mental state changes.
+- Session length in the three modes the daemon supports and the web player
+  offers: open-ended, a countdown, or work/break intervals with a chosen
+  repeat count. While something is playing, the chosen mode can be applied to
+  the running session without restarting it.
+- Mental states, activities, genres and suggested session lengths are read
+  from the daemon rather than hardcoded, so the plugin cannot drift from the
+  catalogue the other front-ends show. All four reload when the mental state
+  changes — the suggestions are genuinely per-state, 60/90/120 minutes for
+  focus against 7–9 hours for sleep, so one fixed list would be wrong for most
+  states and absurd for one. `bfm list session-lengths` is newer than the
+  released CLI; when it is not understood the Timer mode offers plain
+  durations rather than inventing suggestions the service never made.
 - An "Open full app" button that launches `bfm-gtk`, falling back to
   `bfm-kde`, and is hidden when neither is installed. This is the only place
   the existing desktop front-end is reused, and it is reused by launching it:
