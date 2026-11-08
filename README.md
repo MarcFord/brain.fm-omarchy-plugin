@@ -107,9 +107,20 @@ omarchy plugin enable marcford.brainfm            # default placement
 omarchy plugin enable marcford.brainfm --section right
 ```
 
+If the item does not appear, check it is actually enabled:
+
+```sh
+omarchy plugin list | grep brainfm        # should say "enabled"
+omarchy plugin enable marcford.brainfm    # if it says "disabled"
+```
+
+`--enable` asks the running shell to enable the plugin, and installing can
+restart that shell — so on a cold install the enable step can be skipped with
+only a passing "omarchy-shell is not responding" to show for it. Running
+`omarchy plugin enable` afterwards is enough; the plugin is already installed.
+
 Omarchy does not hot-reload plugin QML — the shell is started with its file
-watcher disabled on purpose — so if the item does not appear, restart the
-shell:
+watcher disabled on purpose — so after changing any plugin file, restart it:
 
 ```sh
 omarchy-restart-shell
