@@ -242,9 +242,17 @@ omarchy plugin disable marcford.brainfm   # keep it installed, take it off the b
 omarchy plugin remove marcford.brainfm    # remove it entirely
 ```
 
-Removal takes the bar entry with it. The plugin stores nothing outside
-`~/.config/omarchy/`, so nothing is left behind; `bfmd` and your Brain.fm
-session are untouched and are removed separately if you want them gone.
+Removal takes the bar entry with it and stops the status watcher — verified by
+removing it and checking: the plugin folder goes, the `shell.json` entry goes,
+and the `bfm status --watch` child exits rather than being orphaned.
+
+The plugin writes nothing outside its own folder, so there is nothing else to
+clean up. Omarchy itself keeps a timestamped backup of the folder at
+`~/.config/omarchy/plugins/.marcford.brainfm.bak.<date>`; delete it if you do
+not want it.
+
+`bfmd` and your Brain.fm session are untouched, and are removed separately if
+you want them gone.
 
 ## Development
 
