@@ -58,10 +58,23 @@ Item {
   //      built on the stream alone shows "playing" for a dead daemon.
   //
   // Upstream has since made the stream follow the daemon in both directions,
-  // which makes this redundant there -- but v0.1.0 is what is released and
-  // installed, so the plugin keeps its own liveness signal and works on both.
-  // The two agree when the daemon is fixed: MPRIS only ever triggers a re-read,
-  // and a re-read we asked for is not reported as an outage.
+  // which makes this redundant against a daemon that has that change.
+  //
+  // It is kept anyway, deliberately. Unlike the timer features, which are
+  // gated on InterfaceVersion, there is no way to detect at runtime whether
+  // the installed `bfm` has the watch fix: it changed the behaviour of a
+  // stream, not the D-Bus interface, so InterfaceVersion does not move, and
+  // the binary version string is not evidence either -- a build carrying the
+  // fix still reported "bfm 0.1.0". Dropping this would mean trusting a README
+  // requirement with nothing checking it, and being wrong would mean a bar
+  // that shows "playing" for a daemon that is gone, which is the one failure
+  // this plugin exists to avoid.
+  //
+  // The cost of keeping it is near zero: no polling and no subprocess, just a
+  // binding on a model the shell already maintains. The two signals cannot
+  // disagree in a way that matters, because MPRIS only ever sets "unavailable"
+  // or asks for a re-read, and a re-read we asked for is not reported as an
+  // outage.
   //
   // bfmd owns org.mpris.MediaPlayer2.bfm for as long as it runs -- including
   // while idle, with PlaybackStatus "Stopped" -- so the name appearing or

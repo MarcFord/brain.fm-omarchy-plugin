@@ -160,6 +160,27 @@ bfm play focus --activity "Deep Work" --timer 50m
 bfm pause / bfm resume / bfm skip / bfm stop
 ```
 
+### What this plugin deliberately does not do
+
+- **It does not touch anything outside itself when a timer phase changes.**
+  Muting notifications during a work phase, setting do-not-disturb, dimming a
+  screen — these are reasonable things to want and they are deliberately not
+  here. They are per-person policy, and a bar plugin reaching into unrelated
+  parts of your desktop to implement them is overreach.
+
+  `bfmd` has hooks for exactly this. A few lines in its config get you the
+  same thing, scoped to your machine and your preferences, with
+  `BFM_TIMER_CYCLE` and `BFM_TIMER_CYCLES` available so a script can tell
+  "break 3 of 4" from "break 1 of 4". See the brain.fm-linux-client docs.
+
+- **It does not draw a previous-track or seek control**, because the daemon
+  reports both as unsupported — Brain.fm sessions only move forward and the
+  decoder cannot seek.
+
+- **It does not implement a login flow.** A session token renews indefinitely,
+  so signing in is a once-ever thing; the plugin surfaces the failure and
+  points at `bfm login --browser`.
+
 ### When it says the daemon is not reachable
 
 That glyph means `bfm` could not reach `bfmd` on the session bus. Usually:
