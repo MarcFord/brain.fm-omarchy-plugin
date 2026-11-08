@@ -160,7 +160,10 @@ Mental states, activities and genres are read from the daemon, so they always
 match what your account actually offers. Activities and genres differ per
 mental state, and change when you pick a different one.
 
-`Esc` closes the panel. You can also bind a key to it:
+`Esc` closes the panel, `Enter` starts the selected session, and `↑`/`↓` (or
+`k`/`j`) scroll the picker — the genre list is as long as your account's
+catalogue, so on a short screen the lower controls are reachable without a
+mouse. You can also bind a key to open it:
 
 ```sh
 omarchy-shell shell summon marcford.brainfm '{}'

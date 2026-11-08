@@ -212,6 +212,12 @@ BarWidget {
       // be driven from the keyboard, and the primary action is the one thing
       // that has to be reachable that way.
       onReturnRequested: sessionPanel.startSelected()
+      // Up/Down (and k/j) scroll the picker. On a short screen the lower
+      // controls are off the card, and a pointer wheel should not be the only
+      // way to reach them.
+      onMoveRequested: function (dx, dy) {
+        if (dy !== 0) sessionPanel.scrollBy(dy)
+      }
 
       SessionPanel {
         id: sessionPanel

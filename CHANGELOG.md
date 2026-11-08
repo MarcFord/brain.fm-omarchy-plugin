@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the existing desktop front-end is reused, and it is reused by launching it:
   its QML is compiled into that binary and cannot be imported.
 - Middle-clicking the bar item toggles pause without opening the panel.
+- The panel scrolls from the keyboard with the arrow keys or `k`/`j`. Its
+  height is set by the daemon's catalogue — twenty genres for focus — so on a
+  short screen the lower controls sit below the card, and a pointer wheel
+  should not be the only way to reach them.
 - The panel opens showing the timer that is actually running, read from the
   daemon rather than from whatever was last picked in the panel — so it is
   right for a timer set from the CLI, from another front-end, or before the

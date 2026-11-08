@@ -300,7 +300,23 @@ Item {
   // that is running now rather than the one running when the shell started.
   function reload() {
     if (service) service.refreshTimer()
+    flick.contentY = 0
   }
+
+  // Scroll from the keyboard. The picker is as tall as the daemon's catalogue
+  // makes it -- twenty genres for focus -- so on a short screen the lower
+  // controls are only reachable by scrolling, and a wheel is not the only
+  // input anyone has. Omarchy's panels are expected to be keyboard-drivable
+  // for exactly this reason.
+  function scrollBy(steps) {
+    const max = Math.max(0, flick.contentHeight - flick.height)
+    if (max <= 0) return false
+    flick.contentY = Math.max(0, Math.min(max,
+      flick.contentY + steps * Style.space(48)))
+    return true
+  }
+
+  readonly property bool scrollable: flick.contentHeight > flick.height
 
   onTimerModeChanged: refreshLength()
 
