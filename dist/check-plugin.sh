@@ -118,6 +118,46 @@ else
 fi
 
 echo
+echo "== local components resolve"
+# `omarchy plugin validate` only checks entry points, and this qmllint does not
+# resolve types, so deleting a component that an entry point instantiates --
+# SessionPanel.qml, say -- passed every other check here while leaving a plugin
+# that loads and then fails at runtime.
+#
+# Every capitalised `Type {` is either a type from a module the plugin imports
+# (listed here, which doubles as the record of what it depends on) or a .qml
+# file that must exist beside it.
+EXTERNAL_TYPES=$(cat <<'TYPES'
+Item Text Rectangle Row Column Flow Grid MouseArea Timer Loader Repeater
+Component Connections Behavior NumberAnimation ColorAnimation Flickable
+PropertyAnimation SequentialAnimation ParallelAnimation Binding
+Process SplitParser StdioCollector Socket IpcHandler FileView
+BarWidget WidgetButton BarIconButton KeyboardPanel PanelKeyCatcher Button
+PanelSeparator PanelSectionHeader PanelActionButton PanelToolTip Panel
+PanelController Dropdown MultiSelect TextField Toggle ToggleSwitch
+ButtonGroup SearchableDropdown NumberField PopupCard BorderSurface
+QtObject ListModel ListElement ScrollView FloatingWindow PanelWindow
+TYPES
+)
+
+shopt -s nullglob
+for f in "$ROOT"/*.qml; do
+  while IFS= read -r type; do
+    [[ -n $type ]] || continue
+    if grep -qx -- "$type" <<<"$(tr ' ' '\n' <<<"$EXTERNAL_TYPES" | grep -v '^$')"; then
+      continue
+    fi
+    if [[ -f "$ROOT/$type.qml" ]]; then
+      pass "$(basename "$f") uses local component $type.qml, which exists"
+    else
+      fail "$(basename "$f") instantiates '$type' but $type.qml is missing and it is not a known imported type"
+    fi
+  done < <(grep -oE '^[[:space:]]*[A-Z][A-Za-z0-9]*[[:space:]]*\{' "$f" |
+    sed -E 's/[[:space:]]*\{//; s/^[[:space:]]*//' | sort -u)
+done
+shopt -u nullglob
+
+echo
 echo "== external commands are documented"
 # Derived from the source, not from a hand-maintained list, so adding a command
 # without documenting it fails here instead of shipping undocumented.
@@ -130,10 +170,14 @@ echo "== external commands are documented"
 # whole rather than line by line. The first version of this check was line
 # based, silently matched nothing, and cheerfully reported "no external
 # commands are run by this plugin" for a plugin that runs two.
+# Both ways a plugin can start a process: a Process's `command:` array and
+# Quickshell.execDetached([...]). A command built from a runtime variable has no
+# literal to find here, so the README table stays the authority -- this catches
+# the literals, which is what people actually forget to document.
 mapfile -t COMMANDS < <(
   cat "$ROOT"/*.qml 2>/dev/null |
     tr '\n' ' ' |
-    grep -o 'command: \[[^]]*\]' |
+    grep -oE 'command: \[[^]]*\]|execDetached\(\[[^]]*\]' |
     grep -o '"[^"]*"' | tr -d '"' |
     # keep argv[0]-looking tokens: no leading dash, no spaces
     grep -vE '^-|^$| ' |

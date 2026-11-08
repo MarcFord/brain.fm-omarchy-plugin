@@ -4,7 +4,8 @@ Run your [Brain.fm](https://brain.fm) listening session from the Omarchy bar.
 
 The bar item shows what the session is doing right now — idle, buffering,
 playing or paused — along with the current track, and says so plainly when the
-daemon behind it is not running instead of quietly showing "idle".
+daemon behind it is not running instead of quietly showing "idle". Click it to
+start a session, or to control the one that is playing.
 
 ![The Brain.fm bar item](preview.png)
 
@@ -42,6 +43,18 @@ only ever runs these commands, all of them from `brain.fm-linux-client`:
 | Command | When | Why |
 |---|---|---|
 | `setpriv --pdeathsig TERM bfm status --watch --json` | Once, for as long as the shell runs | The single source of session state. Emits one JSON object per change, so there is no polling. `setpriv` guarantees the child dies with the shell. |
+| `bfm list states` | Once at startup | Fills the mental-state picker |
+| `bfm list activities --state <state>` | When you pick a mental state | Fills the activity picker |
+| `bfm list genres --state <state>` | When you pick a mental state | Fills the genre picker |
+| `bfm play <state> [--activity …] [--genre …]… [--effort …] [--timer …]` | When you press Start | Starts a session |
+| `bfm pause`, `bfm resume`, `bfm skip`, `bfm stop` | When you press the matching control | Transport |
+| `bfm timer [spec]` | When you change session length on a running session | Sets or, with no argument, clears the timer |
+| `sh -c 'command -v bfm-gtk \|\| command -v bfm-kde \|\| true'` | Once at startup | Decides whether to show the "Open full app" button at all |
+| `bfm-gtk` (or `bfm-kde`) | When you press "Open full app" | Launched detached, so closing the shell does not close it |
+
+Nothing is hardcoded that the daemon can answer for: mental states, activities
+and genres are all read from it, so this plugin cannot drift from what Brain.fm
+offers or from the other front-ends.
 
 `bfmd` itself is never launched by this plugin. It is D-Bus activated, so the
 first `bfm` call starts it on demand.
@@ -91,10 +104,36 @@ a session is running:
 | 󰇘 | `buffering` | Waiting on the next track |
 | 󰅤 | `unavailable` | **The daemon is not reachable.** Dimmed, and never shown as "idle" |
 
-Hover for a tooltip naming the state and the track.
+Hover for a tooltip naming the state and the track, including the timer phase
+and time remaining when a timer is set.
 
-This release is read-only — it reports state and does not control playback.
-Start and control sessions with the CLI meanwhile:
+### The panel
+
+Click the bar item to open the session panel.
+
+- **While something is playing** — Pause/Resume, Skip and Stop. There is no
+  previous-track or seek control: Brain.fm sessions only move forward and the
+  daemon reports both as unsupported, so drawing them would be a lie.
+- **Starting a session** — pick a mental state, then an activity, any number of
+  genres, the neural effect, and a length. Press **Start session**, or just
+  press **Enter**.
+- **Open full app** launches `bfm-gtk` (or `bfm-kde`). The button is hidden
+  when neither is installed.
+
+Mental states, activities and genres are read from the daemon, so they always
+match what your account actually offers. Activities and genres differ per
+mental state, and change when you pick a different one.
+
+`Esc` closes the panel. You can also bind a key to it:
+
+```sh
+omarchy-shell shell summon marcford.brainfm '{}'
+omarchy-shell shell hide marcford.brainfm
+```
+
+Middle-clicking the bar item toggles pause without opening anything.
+
+Everything here is also available from the CLI:
 
 ```sh
 bfm play focus --activity "Deep Work" --timer 50m

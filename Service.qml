@@ -47,8 +47,8 @@ Item {
 
   // ---- MPRIS, used only as a liveness signal.
   //
-  // `bfm status --watch --json` has two blind spots, both verified against
-  // bfmd v0.1.0 on this machine rather than assumed:
+  // `bfm status --watch --json` has two blind spots in **v0.1.0**, the released
+  // build, both verified against it here rather than assumed:
   //
   //   1. A watcher that starts while no daemon is reachable prints one
   //      "unavailable" line and then stays silent forever, even once a daemon
@@ -56,6 +56,12 @@ Item {
   //   2. A watcher whose daemon dies mid-stream prints nothing at all and
   //      keeps running, leaving the last state on screen indefinitely. A bar
   //      built on the stream alone shows "playing" for a dead daemon.
+  //
+  // Upstream has since made the stream follow the daemon in both directions,
+  // which makes this redundant there -- but v0.1.0 is what is released and
+  // installed, so the plugin keeps its own liveness signal and works on both.
+  // The two agree when the daemon is fixed: MPRIS only ever triggers a re-read,
+  // and a re-read we asked for is not reported as an outage.
   //
   // bfmd owns org.mpris.MediaPlayer2.bfm for as long as it runs -- including
   // while idle, with PlaybackStatus "Stopped" -- so the name appearing or
@@ -99,10 +105,16 @@ Item {
       return
     }
     if (!_mprisEverSeen) return
-    // The daemon went away and the stream will not say so (blind spot 2).
-    // Report it immediately, then restart so the next line comes in-band.
+    // The daemon went away and a v0.1.0 stream will not say so (blind spot 2).
+    // Report it -- but deliberately do NOT restart the watcher here. Restarting
+    // runs `bfm`, the name is D-Bus activatable, and that would start a fresh
+    // daemon purely because something was watching. A bar must not resurrect
+    // the service it reports on, least of all one the user just stopped.
+    //
+    // Recovery is driven by the opposite edge instead: when the name comes back
+    // the branch above restarts the stream, and MPRIS reappearing is proof the
+    // daemon is already running rather than a request to start one.
     _setUnavailable("Brain.fm — daemon stopped")
-    _restartWatcher(true)
   }
 
   // ---- The state stream.
@@ -250,7 +262,190 @@ Item {
     onTriggered: root._restartWatcher(true)
   }
 
-  Component.onCompleted: watcher.running = true
+  // ---- Commands.
+  //
+  // Everything below shells out to `bfm`, which upstream enforces to be a thin
+  // D-Bus client with no API or audio code in it. The daemon's own state stream
+  // is what reports the result, so none of these parse stdout for success --
+  // they only surface a failure the user would otherwise never see.
+
+  // Last command failure, shown in the panel until the next command succeeds.
+  property string lastError: ""
+
+  readonly property bool busy: actionProc.running
+
+  function _run(args) {
+    if (actionProc.running) return false
+    lastError = ""
+    _actionArgs = args
+    actionProc.command = ["bfm"].concat(args)
+    actionProc.running = true
+    return true
+  }
+
+  property var _actionArgs: []
+
+  function pause() { _run(["pause"]) }
+  function resume() { _run(["resume"]) }
+  function skip() { _run(["skip"]) }
+  function stop() { _run(["stop"]) }
+
+  // `timer` takes "" (infinite), "50m" (countdown) or "25m/5m x4" (intervals).
+  function setTimer(spec) {
+    // `bfm timer` with no argument clears it; passing "" as an argv entry is
+    // not the same thing.
+    _run(String(spec || "").trim() === "" ? ["timer"] : ["timer", String(spec)])
+  }
+
+  function startSession(state, activity, genres, effort, timer) {
+    const args = ["play", String(state)]
+    if (activity) args.push("--activity", String(activity))
+    const list = Array.isArray(genres) ? genres : []
+    for (let i = 0; i < list.length; i++) args.push("--genre", String(list[i]))
+    if (effort) args.push("--effort", String(effort))
+    const spec = String(timer || "").trim()
+    if (spec !== "") args.push("--timer", spec)
+    return _run(args)
+  }
+
+  Process {
+    id: actionProc
+    running: false
+    command: []
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+
+    onExited: function (exitCode) {
+      if (!root) return
+      if (Number(exitCode) === 0) {
+        root.lastError = ""
+        return
+      }
+      // bfm writes a human-readable reason to stderr. Keep the first line: the
+      // rest is a multi-line hint block aimed at a terminal, not a bar popup.
+      const err = String(stderr.text || "").trim().split("\n")[0].trim()
+      root.lastError = err !== ""
+        ? err
+        : "bfm " + root._actionArgs.join(" ") + " failed (" + exitCode + ")"
+    }
+  }
+
+  // ---- Catalogue.
+  //
+  // Mental states, activities and genres all come from the daemon rather than
+  // being hardcoded, so this cannot drift from what Brain.fm actually offers or
+  // from the other front-ends. `bfm list` has no --json, but its output is
+  // simple: one item per line, and activities are "id<TAB>name".
+  //
+  // Session lengths are the exception: BrainFM1 exposes ListSessionLengths but
+  // the CLI has no `bfm list session-lengths`, so the timer presets below are
+  // the three shapes the daemon's SetTimer accepts rather than a fetched list.
+  property var mentalStates: []
+  property var activities: []
+  property var genres: []
+  property string catalogState: ""
+
+  function loadCatalog(state) {
+    const next = String(state || "").trim()
+    if (next === "" || next === catalogState) return
+    catalogState = next
+    activities = []
+    genres = []
+    activitiesProc.running = false
+    activitiesProc.command = ["bfm", "list", "activities", "--state", next]
+    activitiesProc.running = true
+    genresProc.running = false
+    genresProc.command = ["bfm", "list", "genres", "--state", next]
+    genresProc.running = true
+  }
+
+  function _lines(text) {
+    const out = []
+    const raw = String(text || "").split("\n")
+    for (let i = 0; i < raw.length; i++) {
+      const line = raw[i].replace(/\r$/, "").trim()
+      if (line !== "") out.push(line)
+    }
+    return out
+  }
+
+  Process {
+    id: statesProc
+    command: ["bfm", "list", "states"]
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root || Number(exitCode) !== 0) return
+      root.mentalStates = root._lines(stdout.text)
+    }
+  }
+
+  Process {
+    id: activitiesProc
+    running: false
+    command: []
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root || Number(exitCode) !== 0) return
+      // "id<TAB>name". The CLI wants the name, not the id, so the id is kept
+      // only because Favorite needs that shape later.
+      const rows = root._lines(stdout.text)
+      const out = []
+      for (let i = 0; i < rows.length; i++) {
+        const parts = rows[i].split("\t")
+        if (parts.length >= 2) out.push({ id: parts[0].trim(), name: parts[1].trim() })
+        else out.push({ id: "", name: parts[0].trim() })
+      }
+      root.activities = out
+    }
+  }
+
+  Process {
+    id: genresProc
+    running: false
+    command: []
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root || Number(exitCode) !== 0) return
+      root.genres = root._lines(stdout.text)
+    }
+  }
+
+  // ---- The optional desktop app the panel can hand off to.
+  //
+  // Checked once, because installing an app while the shell runs is rare and a
+  // missing button is better than a button that does nothing. bfm-gtk is
+  // preferred on Omarchy -- this is Hyprland, not Plasma -- with bfm-kde as the
+  // fallback when that is what is installed.
+  property string fullAppCommand: ""
+  readonly property bool hasFullApp: fullAppCommand !== ""
+
+  Process {
+    id: fullAppProbe
+    command: ["sh", "-c",
+      "command -v bfm-gtk || command -v bfm-kde || true"]
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function () {
+      if (!root) return
+      root.fullAppCommand = String(stdout.text || "").trim().split("\n")[0].trim()
+    }
+  }
+
+  function openFullApp() {
+    if (fullAppCommand === "") return
+    // Detached on purpose: a desktop app must not be a child of the bar, or
+    // closing the shell takes it with it.
+    Quickshell.execDetached([fullAppCommand])
+  }
+
+  Component.onCompleted: {
+    watcher.running = true
+    statesProc.running = true
+    fullAppProbe.running = true
+  }
 
   // Stop the child explicitly when the shell tears this plugin down. Quickshell
   // reaps a destroyed Process's child, but doing it here means the stream stops
