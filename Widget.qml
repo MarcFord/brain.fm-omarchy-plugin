@@ -24,7 +24,15 @@ BarWidget {
     && typeof bar.shell.serviceFor === "function"
     ? bar.shell.serviceFor(moduleName) : null
 
-  readonly property string sessionState: service ? service.sessionState : "starting"
+  // `startPending` covers the few seconds between asking for a session and the
+  // daemon reporting one, during which it honestly says "idle". Showing idle
+  // there makes the Start button look broken, so the bar shows the same
+  // in-progress glyph it shows for buffering.
+  readonly property string sessionState: {
+    if (!service) return "starting"
+    if (service.startPending && service.sessionState === "idle") return "buffering"
+    return service.sessionState
+  }
   readonly property string trackTitle: service ? service.trackTitle : ""
   readonly property bool reachable: service ? service.reachable : false
 
@@ -37,6 +45,8 @@ BarWidget {
     if (!isFinite(raw) || raw <= 0) return 0
     return Math.max(0, Math.min(560, raw))
   }
+  readonly property string defaultMentalState:
+    String(root.setting("defaultMentalState", "focus"))
 
   // ---- Popup lifecycle.
   //
@@ -84,8 +94,12 @@ BarWidget {
     }
   }
 
-  readonly property string tooltipText: service
-    ? service.tooltipText : "Brain.fm — connecting"
+  readonly property string tooltipText: {
+    if (!service) return "Brain.fm — connecting"
+    if (service.startPending && service.sessionState === "idle")
+      return "Brain.fm — starting a session"
+    return service.tooltipText
+  }
 
   // A title is only worth bar space while there is actually a session; a
   // vertical bar has no room for one at all.
@@ -204,6 +218,8 @@ BarWidget {
         anchors.fill: parent
         service: root.service
         bar: root.bar
+        // Settings reach the bar widget only, so they are handed down here.
+        preferredState: root.defaultMentalState
         onCloseRequested: root.close()
       }
     }

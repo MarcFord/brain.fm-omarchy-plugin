@@ -311,6 +311,32 @@ Item {
     _run(String(spec || "").trim() === "" ? ["timer"] : ["timer", String(spec)])
   }
 
+  // True between asking for a session and the daemon reporting one.
+  //
+  // Starting a session fetches a queue of around forty tracks, which takes a
+  // few seconds, and the daemon reports plain "idle" for all of it. A bar that
+  // shows idle immediately after you press Start looks like a Start button
+  // that did not work -- it is what made me think my own button was broken.
+  //
+  // This is not a guess about what the daemon is doing: it is set only by
+  // issuing the command, and cleared the moment the daemon says anything else,
+  // the command fails, or the wait becomes implausible.
+  property bool startPending: false
+
+  onSessionStateChanged: {
+    if (sessionState !== "idle" && sessionState !== "starting") startPending = false
+  }
+
+  Timer {
+    id: startPendingTimeout
+    interval: 30000
+    repeat: false
+    running: root.startPending
+    // A session that has not begun in thirty seconds is not starting. Better
+    // to fall back to the daemon's own idle than to spin forever.
+    onTriggered: root.startPending = false
+  }
+
   function startSession(state, activity, genres, effort, timer) {
     const args = ["play", String(state)]
     if (activity) args.push("--activity", String(activity))
@@ -319,7 +345,9 @@ Item {
     if (effort) args.push("--effort", String(effort))
     const spec = String(timer || "").trim()
     if (spec !== "") args.push("--timer", spec)
-    return _run(args)
+    const issued = _run(args)
+    if (issued) startPending = true
+    return issued
   }
 
   Process {
@@ -335,6 +363,8 @@ Item {
         root.lastError = ""
         return
       }
+      // The command itself failed, so nothing is starting.
+      root.startPending = false
       // bfm writes a human-readable reason to stderr. Keep the first line: the
       // rest is a multi-line hint block aimed at a terminal, not a bar popup.
       const err = String(stderr.text || "").trim().split("\n")[0].trim()

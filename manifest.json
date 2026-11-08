@@ -29,7 +29,8 @@
     "defaultSection": "center",
     "defaults": {
       "showTrackTitle": true,
-      "maxTitleWidth": 180
+      "maxTitleWidth": 180,
+      "defaultMentalState": "focus"
     },
     "schema": [
       {
@@ -48,6 +49,19 @@
         "step": 20,
         "defaultValue": 180,
         "description": "Pixels before the title is elided. Use 0 for no limit."
+      },
+      {
+        "key": "defaultMentalState",
+        "type": "enum",
+        "label": "Panel opens on",
+        "options": [
+          "focus",
+          "relax",
+          "sleep",
+          "meditate"
+        ],
+        "defaultValue": "focus",
+        "description": "Which mental state is preselected when the panel opens. Ignored if your account does not offer it."
       }
     ]
   }

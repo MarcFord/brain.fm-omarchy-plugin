@@ -52,7 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   right for a timer set from the CLI, from another front-end, or before the
   shell restarted. A spec the controls cannot represent is shown verbatim and
   re-applied unchanged instead of being rounded to the nearest button.
-- Settings `showTrackTitle` and `maxTitleWidth` on the bar entry.
+- Settings on the bar entry: `showTrackTitle`, `maxTitleWidth`, and
+  `defaultMentalState` for which mental state the panel opens on — honoured
+  only if the daemon actually offers it, so a stale value falls back instead
+  of selecting nothing.
+- The bar shows a session as starting from the moment Start is pressed.
+  Fetching a session's queue takes a few seconds, during which the daemon
+  honestly reports `idle`; showing that made the Start button look like it had
+  not worked. The indication comes from having issued the command, and clears
+  as soon as the daemon says anything else, the command fails, or the wait
+  passes thirty seconds.
 - `dist/check-plugin.sh`, run in CI, covering manifest schema, entry points,
   symlinks, QML syntax, and that every external command the plugin runs is
   documented in the README.

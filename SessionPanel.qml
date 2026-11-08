@@ -195,12 +195,25 @@ Item {
     { value: "high", label: "High" }
   ]
 
+  // Which mental state the panel opens on, from the bar entry's settings.
+  // Only the widget receives settings, so it passes this down.
+  property string preferredState: ""
+
   function syncDefaults() {
     if (!service) return
-    if (selState === "") {
-      const states = service.mentalStates || []
-      if (states.length > 0) chooseState(String(states[0]))
+    if (selState !== "") return
+    const states = service.mentalStates || []
+    if (states.length === 0) return
+    // Honour the preference only if the daemon actually offers it, so a stale
+    // or misspelled setting falls back rather than selecting nothing.
+    const wanted = String(preferredState || "").trim().toLowerCase()
+    for (let i = 0; i < states.length; i++) {
+      if (String(states[i]).toLowerCase() === wanted) {
+        chooseState(String(states[i]))
+        return
+      }
     }
+    chooseState(String(states[0]))
   }
 
   function chooseState(next) {

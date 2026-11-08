@@ -218,9 +218,11 @@ Settings live on the bar item's entry in `~/.config/omarchy/shell.json`.
 |---|---|---|---|
 | `showTrackTitle` | boolean | `true` | Show the track title beside the glyph. The title is always in the tooltip. |
 | `maxTitleWidth` | integer | `180` | Pixels before the title is elided. `0` means no limit. |
+| `defaultMentalState` | enum | `focus` | Which mental state the panel opens on. Ignored if your account does not offer it. |
 
 ```json
-{ "id": "marcford.brainfm", "showTrackTitle": true, "maxTitleWidth": 180 }
+{ "id": "marcford.brainfm", "showTrackTitle": true, "maxTitleWidth": 180,
+  "defaultMentalState": "focus" }
 ```
 
 A vertical bar never shows the title — there is no room for it.
