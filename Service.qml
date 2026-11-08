@@ -60,16 +60,14 @@ Item {
   // Upstream has since made the stream follow the daemon in both directions,
   // which makes this redundant against a daemon that has that change.
   //
-  // It is kept anyway, deliberately. The fix changed the behaviour of a
-  // stream rather than the D-Bus interface, so InterfaceVersion does not move
-  // for it and there is nothing to feature-detect the way the timer controls
-  // are detected. The binary version does track it from 0.1.1 onward, but a
-  // version string is a proxy for behaviour rather than evidence of it -- and
-  // this particular failure is a bar that shows "playing" for a daemon that is
-  // gone: the one thing this plugin exists to prevent, and the hardest for a
-  // user to attribute, because a stale bar looks exactly like a working one.
-  // That is too unpleasant to hang on a proxy, and it is why this stays even
-  // though the stream no longer needs it.
+  // It is kept for CLIs that do not promise that, and is inert on ones that
+  // do. `bfm capabilities` advertises `watch-follows-daemon` by name, so this
+  // is now gated on evidence rather than on a version number or a line in the
+  // README -- which is the only reason it is conditional at all. Being wrong
+  // here means a bar that shows "playing" for a daemon that is gone: the one
+  // thing this plugin exists to prevent, and the hardest for a user to
+  // attribute, because a stale bar looks exactly like a working one. A CLI
+  // that cannot be asked keeps the fallback.
   //
   // The cost of keeping it is near zero: no polling and no subprocess, just a
   // binding on a model the shell already maintains. The two signals cannot
@@ -107,6 +105,10 @@ Item {
   property bool _mprisEverSeen: false
 
   onMprisPlayerChanged: {
+    // The CLI says its stream follows the daemon on its own, so there is
+    // nothing for this to add. Gated on the guarantee by name rather than on
+    // a version number, because the name is the thing that is promised.
+    if (watchFollowsDaemon) return
     if (mprisPlayer) {
       _mprisEverSeen = true
       // Only "unavailable" is worth a restart. "starting" means the watcher
@@ -272,7 +274,10 @@ Item {
     id: staleProbeTimer
     interval: 30000
     repeat: true
-    running: root.sessionState === "unavailable" && watcher.running
+    // Same gate: a stream that follows the daemon recovers on its own, so
+    // polling it would only re-activate a daemon the user stopped.
+    running: !root.watchFollowsDaemon
+      && root.sessionState === "unavailable" && watcher.running
     onTriggered: root._restartWatcher(true)
   }
 
@@ -504,6 +509,51 @@ Item {
     }
   }
 
+  // ---- What the installed CLI guarantees about its own behaviour.
+  //
+  // `bfm capabilities` advertises CLI behaviour by name. It is the answer to
+  // the problem that the watch fix changed how a stream behaves rather than
+  // what the D-Bus interface contains, so InterfaceVersion does not move for
+  // it and a version string is only a proxy for it.
+  //
+  // Verified against the installed binary rather than assumed: it needs no
+  // session bus, and it does not start a daemon -- checked with bfmd stopped
+  // and a process count either side -- so it is safe to run at startup before
+  // anything is known about the environment.
+  //
+  // Daemon features stay on InterfaceVersion. This probe describes the CLI,
+  // and a new CLI can be talking to an old daemon.
+  property var capabilities: []
+
+  // The stream reports the daemon appearing and disappearing by itself, so
+  // the MPRIS fallback below is unnecessary. False until proven otherwise,
+  // which is the safe direction: an older CLI, or one that could not be run,
+  // guarantees nothing and keeps the fallback.
+  readonly property bool watchFollowsDaemon:
+    capabilities.indexOf("watch-follows-daemon") >= 0
+
+  Process {
+    id: capabilityProbe
+    command: ["bfm", "capabilities", "--json"]
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function (exitCode) {
+      if (!root) return
+      if (Number(exitCode) !== 0) {
+        // A CLI too old to know the subcommand. Guarantees nothing.
+        root.capabilities = []
+        return
+      }
+      try {
+        const parsed = JSON.parse(String(stdout.text || ""))
+        const list = parsed.features
+        root.capabilities = Array.isArray(list) ? list.map(String) : []
+      } catch (e) {
+        root.capabilities = []
+      }
+    }
+  }
+
   // ---- Interface version, for feature detection.
   //
   // Read over D-Bus because neither the CLI's `--version` nor its JSON status
@@ -625,6 +675,9 @@ Item {
   }
 
   Component.onCompleted: {
+    // Before the watcher: it needs no daemon and no bus, and what it reports
+    // decides whether the MPRIS fallback does anything at all.
+    capabilityProbe.running = true
     watcher.running = true
     statesProc.running = true
     fullAppProbe.running = true

@@ -83,6 +83,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   name to come back, which is proof a daemon is running rather than a request
   to start one.
 
+### Changed
+
+- The MPRIS liveness fallback is now gated on `bfm capabilities` advertising
+  `watch-follows-daemon`, rather than running unconditionally. On a CLI that
+  makes that promise the stream reports the daemon appearing and disappearing
+  by itself and the fallback is inert; on one that does not, or one too old to
+  be asked, it stays active. Gated on the feature name rather than a version,
+  because the name is what is guaranteed.
+
 ### Notes on `bfm status --watch --json`
 
 Two behaviours of the upstream watcher shaped this plugin, both observed

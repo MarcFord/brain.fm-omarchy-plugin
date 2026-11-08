@@ -40,6 +40,10 @@ there and it adapts rather than failing:
   rather than approximated — a missing repeat count means *one* cycle, not
   forever, so a fallback would hand you a single 25-minute round when you
   asked for continuous.
+- **A self-sufficient status stream.** Older CLIs do not report the daemon
+  going away, so the plugin watches the MPRIS name `bfmd` owns as a stand-in
+  and shows the outage from that instead. From 0.1.2 the CLI advertises
+  `watch-follows-daemon` and the stand-in switches itself off.
 
 Both are detected at runtime, so upgrading the daemon is enough; nothing in
 the plugin needs changing.
@@ -60,6 +64,7 @@ only ever runs these commands, all of them from `brain.fm-linux-client`:
 | Command | When | Why |
 |---|---|---|
 | `setpriv --pdeathsig TERM bfm status --watch --json` | Once, for as long as the shell runs | The single source of session state. Emits one JSON object per change, so there is no polling. `setpriv` guarantees the child dies with the shell. |
+| `bfm capabilities --json` | Once at startup | Asks the CLI what behaviour it guarantees. Needs no daemon and no session bus, and starts neither |
 | `bfm list states` | Once at startup | Fills the mental-state picker |
 | `bfm list activities --state <state>` | When you pick a mental state | Fills the activity picker |
 | `bfm list genres --state <state>` | When you pick a mental state | Fills the genre picker |
