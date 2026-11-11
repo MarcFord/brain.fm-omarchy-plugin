@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Recommends brain.fm-linux-client 0.1.3 or newer, which fixes a security
+  issue in `bfm login --browser`. This plugin never runs that command, but it
+  points you at it for signing in.
 
 ## [0.1.0] - 2026-11-08
 

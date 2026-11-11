@@ -22,13 +22,21 @@ install separately.
 
 | Requirement | Why | Required? |
 |---|---|---|
-| [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) — **0.1.1 or newer recommended** | Supplies every piece of session state and runs the audio | **Yes** |
+| [brain.fm-linux-client](https://github.com/MarcFord/brain.fm-linux-client) (`bfmd` and `bfm`) — **0.1.3 or newer recommended** | Supplies every piece of session state and runs the audio | **Yes** |
 | A Brain.fm subscription, signed in with `bfm login` | `bfmd` cannot stream without one | **Yes** |
 | `setpriv` (from `util-linux`) | Ties the status-watcher child to the shell so it cannot outlive it | **Yes** — already present on Arch/Omarchy |
 | `busctl` (from `systemd`) | Reads the daemon's interface version, to decide which controls it can offer | **Yes** — already present on Arch/Omarchy |
 | Omarchy 4.x with the Quickshell-based shell | The host this plugin loads into | **Yes** |
 
 ### On older daemons
+
+**0.1.3 fixes a security issue in `bfm login --browser`.** Before it, signing
+in scanned the browser profile for anything JWT-shaped and recognised the
+Brain.fm session by its claims alone, so another site's token could be picked
+and sent to `api.brain.fm`. This plugin never runs `bfm login` — signing in is
+something you do once, yourself — but it points you at that command, so use
+0.1.3 or newer to sign in.
+
 
 The plugin works against 0.1.0, the first release, but two things are missing
 there and it adapts rather than failing:
