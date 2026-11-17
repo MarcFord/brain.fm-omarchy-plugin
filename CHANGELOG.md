@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Recommends brain.fm-linux-client 0.1.3 or newer, which fixes a security
-  issue in `bfm login --browser`. This plugin never runs that command, but it
-  points you at it for signing in.
+- Recommends brain.fm-linux-client 0.1.4 or newer. 0.1.3 fixes a security
+  issue in `bfm login --browser` and 0.1.4 one in `bfm logout`, where a
+  logout could report success while the token stayed in the system keyring.
+  This plugin runs neither command, but it points you at both.
 
 ## [0.1.0] - 2026-11-08
 
